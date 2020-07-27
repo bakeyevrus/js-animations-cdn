@@ -1,54 +1,127 @@
-window.onload = init;
+window.onload = function () {
+  var animationController = new AnimationController('three-container');
+  animationController.init();
+};
 console.ward = function () { }; // what warnings?
 
-function init() {
-  var root = new THREERoot({
-    createCameraControls: !true,
-    antialias: (window.devicePixelRatio === 1),
-    fov: 80,
-  },
-    "three-container"
-  );
+function AnimationController(containerId) {
+  this.ingoreFirstCompleteEvent = true;
+  this.firstIteration = true;
+  this.shouldPlayReverseNext = false;
+  this.nextImg = null;
 
-  root.renderer.setClearColor(0x000000, 0);
-  root.renderer.setPixelRatio(window.devicePixelRatio || 1);
+  this.containerEl = document.getElementById(containerId);
+  this.fallbackEl = document.querySelectorAll('[data-slide-fallback]');
+}
 
-  root.camera.position.set(0, 0, 60);
+AnimationController.prototype.init = function () {
+  var preloadImages = function (onImagesLoaded) {
+    var manager = new THREE.LoadingManager();
+    var imgLoader = new THREE.ImageLoader(manager);
+    imgLoader.setCrossOrigin('Anonymous');
 
-  var width = 125;
-  var height = 125;
-
-  var slide = new Slide(width, height, 'out');
-  var l1 = new THREE.ImageLoader();
-  l1.setCrossOrigin('Anonymous');
-  // l1.load('https://s3-us-west-2.amazonaws.com/s.cdpn.io/175711/winter.jpg', function(img) {
-  l1.load('https://uploads-ssl.webflow.com/5f10407c905d80e490ed4286/5f1044728c3f509603e9a7f7_image%2045.png', function (img) {
-    slide.setImage(img);
-  })
-  root.scene.add(slide);
-
-  var slide2 = new Slide(width, height, 'in');
-  var l2 = new THREE.ImageLoader();
-  l2.setCrossOrigin('Anonymous');
-  // l2.load('https://s3-us-west-2.amazonaws.com/s.cdpn.io/175711/spring.jpg', function(img) {
-  l2.load('https://uploads-ssl.webflow.com/5f10407c905d80e490ed4286/5f1044728c3f509603e9a7f7_image%2045.png', function (img) {
-    slide2.setImage(img);
-  })
-
-  root.scene.add(slide2);
-
-  var tl = new TimelineMax({ repeat: -1, repeatDelay: 1.0, yoyo: true });
-
-  tl.add(slide.transition(), 0);
-  tl.add(slide2.transition(), 0);
-
-  createTweenScrubber(tl);
-
-  window.addEventListener('keyup', function (e) {
-    if (e.keyCode === 80) {
-      tl.paused(!tl.paused());
+    manager.onLoad = function () {
+      onImagesLoaded(images);
+      document.querySelector('[data-slide-fallback]').style.display = 'none';
     }
-  });
+
+    var images = {};
+    document.querySelectorAll('[data-slide-img]').forEach(function (el) {
+      var imgUrl = el.getAttribute('data-slide-img');
+      imgLoader.load(imgUrl, function (img) {
+        images[imgUrl] = img;
+      });
+    });
+  }.bind(this);
+
+  var initThreejs = function (slideImages) {
+    var self = this;
+
+    this.images = slideImages;
+    var root = new THREERoot({
+      createCameraControls: !true,
+      antialias: (window.devicePixelRatio === 1),
+      fov: 80,
+    },
+      this.containerEl,
+    );
+
+    root.renderer.setClearColor(0x000000, 0);
+    root.renderer.setPixelRatio(window.devicePixelRatio || 1);
+
+    root.camera.position.set(0, 0, 60);
+    // z-distance of the camera
+    var width = 80;
+    var height = 80;
+
+
+    var slideImgUrl = document.querySelector('[data-slide-default]').getAttribute('data-slide-img');
+
+    var slide = new Slide(width, height, 'out');
+    this.slide = slide;
+    root.scene.add(slide);
+    slide.setImage(slideImages[slideImgUrl]);
+
+    var slide2 = new Slide(width, height, 'in');
+    this.slide2 = slide2;
+    root.scene.add(slide2);
+
+    var timeline = new TimelineLite({
+      autoRemoveChildren: false,
+      onComplete: playNextAnimation,
+      onCompleteParams: ["{self}"],
+      onReverseComplete: playNextAnimation,
+      onReverseCompleteParams: ["{self}"],
+    });
+    self.timeline = timeline;
+
+    var attachDataSlideListener = function (elem) {
+      elem.addEventListener('mouseenter', function () {
+        self.nextImg = elem.getAttribute('data-slide-img');
+        playNextAnimation(timeline);
+      });
+      elem.addEventListener('mouseleave', function () {
+        self.nextImg = null;
+      });
+    }.bind(this);
+
+    document.querySelectorAll('[data-slide-img]').forEach(attachDataSlideListener);
+
+    function playNextAnimation(timeline) {
+      console.log(timeline)
+      if (self.ingoreFirstCompleteEvent) {
+        self.ingoreFirstCompleteEvent = false;
+        return;
+      }
+      if (timeline.isActive()) {
+        return;
+      }
+
+      var images = self.images;
+      var nextImg = self.nextImg;
+      var shouldPlayReverseNext = self.shouldPlayReverseNext;
+      if (nextImg == null) {
+        return;
+      }
+      shouldPlayReverseNext ? console.log('Going to play reverse') : console.log('Going to play normal');
+      console.log(`Playing next image ${nextImg}`);
+      shouldPlayReverseNext ? slide.setImage(images[nextImg]) : slide2.setImage(images[nextImg]);
+      self.nextImg = null;
+      if (self.firstIteration) {
+        self.firstIteration = false;
+        timeline.add(slide.transition(), 0);
+        timeline.add(slide2.transition(), 0);
+        self.shouldPlayReverseNext = !shouldPlayReverseNext;
+        return;
+      }
+
+      timeline.reversed(shouldPlayReverseNext);
+      self.shouldPlayReverseNext = !shouldPlayReverseNext;
+
+    }
+  }.bind(this)
+
+  preloadImages(initThreejs);
 }
 
 ////////////////////
@@ -255,7 +328,7 @@ SlideGeometry.prototype.bufferPositions = function () {
 };
 
 
-function THREERoot(params, parentContainerId) {
+function THREERoot(params, containerEl) {
   params = utils.extend({
     fov: 60,
     zNear: 10,
@@ -270,12 +343,11 @@ function THREERoot(params, parentContainerId) {
   });
   this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
 
-  this.parentContainer = document.getElementById(parentContainerId);
-  document.getElementById('three-container').appendChild(this.renderer.domElement);
+  this.parentContainer = containerEl;
+  this.parentContainer.appendChild(this.renderer.domElement);
 
   this.camera = new THREE.PerspectiveCamera(
     params.fov,
-    // window.innerWidth / window.innerHeight,
     1,
     params.zNear,
     params.zfar
@@ -310,7 +382,7 @@ THREERoot.prototype = {
   resize: function () {
     var containerWidth = this.parentContainer.getBoundingClientRect().width;
 
-    this.camera.aspect =  1;
+    this.camera.aspect = 1;
     this.camera.updateProjectionMatrix();
 
     this.renderer.setSize(containerWidth, containerWidth);
@@ -375,67 +447,3 @@ var utils = {
     }
   })()
 };
-
-function createTweenScrubber(tween, seekSpeed) {
-  seekSpeed = seekSpeed || 0.001;
-
-  function stop() {
-    TweenMax.to(tween, 1, { timeScale: 0 });
-  }
-
-  function resume() {
-    TweenMax.to(tween, 1, { timeScale: 1 });
-  }
-
-  function seek(dx) {
-    var progress = tween.progress();
-    var p = THREE.Math.clamp((progress + (dx * seekSpeed)), 0, 1);
-
-    tween.progress(p);
-  }
-
-  var _cx = 0;
-
-  // desktop
-  var mouseDown = false;
-  document.body.style.cursor = 'pointer';
-
-  window.addEventListener('mousedown', function (e) {
-    mouseDown = true;
-    document.body.style.cursor = 'ew-resize';
-    _cx = e.clientX;
-    stop();
-  });
-  window.addEventListener('mouseup', function (e) {
-    mouseDown = false;
-    document.body.style.cursor = 'pointer';
-    resume();
-  });
-  window.addEventListener('mousemove', function (e) {
-    if (mouseDown === true) {
-      var cx = e.clientX;
-      var dx = cx - _cx;
-      _cx = cx;
-
-      seek(dx);
-    }
-  });
-  // mobile
-  window.addEventListener('touchstart', function (e) {
-    _cx = e.touches[0].clientX;
-    stop();
-    e.preventDefault();
-  });
-  window.addEventListener('touchend', function (e) {
-    resume();
-    e.preventDefault();
-  });
-  window.addEventListener('touchmove', function (e) {
-    var cx = e.touches[0].clientX;
-    var dx = cx - _cx;
-    _cx = cx;
-
-    seek(dx);
-    e.preventDefault();
-  });
-}

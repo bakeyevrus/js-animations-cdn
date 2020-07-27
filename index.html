@@ -8,21 +8,31 @@
 </head>
 
 <body>
-    <div style="display: flex;">
-        <div>Hey</div>
-        <div id="three-container"></div>
-    </div>
-
-    <div class="buttons-container">
-        <button>Img 1</button>
-        <button>Img 2</button>
-        <button>Img 3</button>
+    <div class="app-container">
+        <div>In <span data-slide-default="true"
+                data-slide-img="https://uploads-ssl.webflow.com/5f10407c905d80e490ed4286/5f1044728c3f509603e9a7f7_image%2045.png">banking</span>,
+            <span data-hovering="false"
+                data-slide-img="https://uploads-ssl.webflow.com/5f10407c905d80e490ed4286/5f1ab486e50529591369dde3_Group%202770%20(5).png">insurance</span>,
+            <span
+                data-slide-img="https://uploads-ssl.webflow.com/5f10407c905d80e490ed4286/5f16f2bad48fc4870e26680b_image%2053.png">telco</span>,
+            <span
+                data-slide-img="https://uploads-ssl.webflow.com/5f10407c905d80e490ed4286/5f1ab4810e03fee26417e8af_Group%202770%20(4).png">retail</span>
+            and
+            <span
+                data-slide-img="https://uploads-ssl.webflow.com/5f10407c905d80e490ed4286/5f1ab47c5f275daa82b43ada_Group%202770%20(3).png">energetics</span>
+            sectors
+        </div>
+        <div class="three-container-wrapper">
+            <div id="three-container"></div>
+            <img class="fallback" src="https://uploads-ssl.webflow.com/5f10407c905d80e490ed4286/5f1044728c3f509603e9a7f7_image%2045.png" data-slide-fallback=""/>
+        </div>
     </div>
 
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/1.18.0/TweenMax.min.js"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r75/three.min.js"></script>
     <script defer src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/175711/bas.js"></script>
     <script defer src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/175711/OrbitControls-2.js"></script>
+    <script defer src="./hover.js"></script>
     <script defer src="./index.js"></script>
 </body>
 
@@ -30,16 +40,39 @@
     html {
         width: 100%;
         height: 100%;
+        font-size: 24px;
+        line-height: 1.33333333em;
+        color: #423F6D;
+    }
+
+    .app-container {
+        display: flex;
+        justify-content: space-between;
+    }
+
+    .three-container-wrapper {
+        width: 34.68%;
+        padding-top: 100%;
+        position: relative;
     }
 
     #three-container {
-        width: 35vw;
-        height: 35vw;
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        top: 0;
     }
 
     .buttons-container {
         display: flex;
         width: 35vw;
+    }
+
+    .fallback {
+        position: absolute;
+        top: 0;
+        z-index: 9999;
+        max-width: 100%;
     }
 </style>
 
