@@ -6,123 +6,164 @@ console.ward = function () { }; // what warnings?
 
 function AnimationController(containerId) {
   this.ingoreFirstCompleteEvent = true;
-  this.firstIteration = true;
-  this.shouldPlayReverseNext = false;
+  // Set this starting value to true, as the first animation is done by default whenever default image is loaded
+  this.shouldPlayReverseNext = true;
+  this.lastImg = null;
   this.nextImg = null;
 
   this.containerEl = document.getElementById(containerId);
-  this.fallbackEl = document.querySelectorAll('[data-slide-fallback]');
-}
+  this.slideImages = null;
+  this.hoveredEl = null;
+  this.lastHoveredEl = null;
 
-AnimationController.prototype.init = function () {
-  var preloadImages = function (onImagesLoaded) {
-    var manager = new THREE.LoadingManager();
-    var imgLoader = new THREE.ImageLoader(manager);
-    imgLoader.setCrossOrigin('Anonymous');
+  this.init = function () {
+    var _this = this;
 
-    manager.onLoad = function () {
-      onImagesLoaded(images);
-      document.querySelector('[data-slide-fallback]').style.display = 'none';
+    preloadDefaultImage();
+
+    function preloadDefaultImage() {
+      var images = {};
+
+      var manager = new THREE.LoadingManager();
+      var imgLoader = new THREE.ImageLoader(manager);
+      imgLoader.setCrossOrigin('Anonymous');
+
+      manager.onLoad = function () {
+        _this.slideImages = images;
+        initThreejs();
+      }
+
+      var defaultImgUrl = getDefaultImgUrl();
+      imgLoader.load(defaultImgUrl, function (img) {
+        images[defaultImgUrl] = img;
+      });
     }
 
-    var images = {};
-    document.querySelectorAll('[data-slide-img]').forEach(function (el) {
-      var imgUrl = el.getAttribute('data-slide-img');
-      imgLoader.load(imgUrl, function (img) {
-        images[imgUrl] = img;
+    function getDefaultImgUrl() {
+      var targetEl = document.querySelector('[data-slide-default]');
+      if (targetEl == null) {
+        throw new Error('No element with \'data-slide-default\' attribute can be found in DOM');
+      }
+
+      var imgUrl = targetEl.getAttribute('data-slide-img');
+
+      if (imgUrl == null) {
+        throw new Error('Element with \'data-slide-default\' attribute defined should contain \'data-slide-img\' attribute');
+      }
+
+      return imgUrl;
+    }
+
+    function initThreejs() {
+      var root = new THREERoot({
+        createCameraControls: !true,
+        antialias: (window.devicePixelRatio === 1),
+        fov: 80,
+      },
+        _this.containerEl,
+      );
+
+      root.renderer.setClearColor(0x000000, 0);
+      root.renderer.setPixelRatio(window.devicePixelRatio || 1);
+
+      root.camera.position.set(0, 0, 60);
+      // z-distance of the camera
+      var width = 80;
+      var height = 80;
+
+
+      var defaultImgUrl = getDefaultImgUrl();
+
+      var slide = new Slide(width, height, 'out');
+      root.scene.add(slide);
+      // Set the first slide transparent to make the image 'appear' 
+      slide.setImage(_this.slideImages[defaultImgUrl], true);
+      _this.slide = slide;
+
+
+      var slide2 = new Slide(width, height, 'in');
+      root.scene.add(slide2);
+      slide2.setImage(_this.slideImages[defaultImgUrl]);
+      _this.slide2 = slide2;
+
+      document.querySelector('[data-slide-default]').classList.add('active-slide');
+
+
+      var timeline = new TimelineLite({
+        autoRemoveChildren: false,
+        onComplete: playNextAnimation,
+        onCompleteParams: ["{self}"],
+        onReverseComplete: playNextAnimation,
+        onReverseCompleteParams: ["{self}"],
       });
-    });
-  }.bind(this);
+      timeline.timeScale(2);
+      _this.timeline = timeline;
 
-  var initThreejs = function (slideImages) {
-    var self = this;
+      timeline.add(slide.transition(), 0);
+      timeline.add(slide2.transition(), 0);
 
-    this.images = slideImages;
-    var root = new THREERoot({
-      createCameraControls: !true,
-      antialias: (window.devicePixelRatio === 1),
-      fov: 80,
-    },
-      this.containerEl,
-    );
+      loadAllImages();
+    }
 
-    root.renderer.setClearColor(0x000000, 0);
-    root.renderer.setPixelRatio(window.devicePixelRatio || 1);
+    function loadAllImages() {
+      var manager = new THREE.LoadingManager();
+      var imgLoader = new THREE.ImageLoader(manager);
+      imgLoader.setCrossOrigin('Anonymous');
 
-    root.camera.position.set(0, 0, 60);
-    // z-distance of the camera
-    var width = 80;
-    var height = 80;
+      manager.onLoad = function () {
+        startListening();
+      }
 
+      document.querySelectorAll('[data-slide-img]').forEach(function (el) {
+        var imgUrl = el.getAttribute('data-slide-img');
+        imgLoader.load(imgUrl, function (img) {
+          _this.slideImages[imgUrl] = img;
+        });
+      });
+    }
 
-    var slideImgUrl = document.querySelector('[data-slide-default]').getAttribute('data-slide-img');
+    function startListening() {
+      document.querySelectorAll('[data-slide-img]').forEach(attachDataSlideListener);
 
-    var slide = new Slide(width, height, 'out');
-    this.slide = slide;
-    root.scene.add(slide);
-    slide.setImage(slideImages[slideImgUrl]);
+    }
 
-    var slide2 = new Slide(width, height, 'in');
-    this.slide2 = slide2;
-    root.scene.add(slide2);
-
-    var timeline = new TimelineLite({
-      autoRemoveChildren: false,
-      onComplete: playNextAnimation,
-      onCompleteParams: ["{self}"],
-      onReverseComplete: playNextAnimation,
-      onReverseCompleteParams: ["{self}"],
-    });
-    self.timeline = timeline;
-
-    var attachDataSlideListener = function (elem) {
+    function attachDataSlideListener(elem) {
       elem.addEventListener('mouseenter', function () {
-        self.nextImg = elem.getAttribute('data-slide-img');
-        playNextAnimation(timeline);
+        _this.nextImg = elem.getAttribute('data-slide-img');
+        _this.hoveredEl = this;
+        playNextAnimation(_this.timeline);
       });
       elem.addEventListener('mouseleave', function () {
-        self.nextImg = null;
+        _this.nextImg = null;
       });
-    }.bind(this);
+    }
 
-    document.querySelectorAll('[data-slide-img]').forEach(attachDataSlideListener);
 
     function playNextAnimation(timeline) {
-      console.log(timeline)
-      if (self.ingoreFirstCompleteEvent) {
-        self.ingoreFirstCompleteEvent = false;
+      if (_this.ingoreFirstCompleteEvent) {
+        _this.ingoreFirstCompleteEvent = false;
         return;
       }
-      if (timeline.isActive()) {
-        return;
-      }
-
-      var images = self.images;
-      var nextImg = self.nextImg;
-      var shouldPlayReverseNext = self.shouldPlayReverseNext;
-      if (nextImg == null) {
-        return;
-      }
-      shouldPlayReverseNext ? console.log('Going to play reverse') : console.log('Going to play normal');
-      console.log(`Playing next image ${nextImg}`);
-      shouldPlayReverseNext ? slide.setImage(images[nextImg]) : slide2.setImage(images[nextImg]);
-      self.nextImg = null;
-      if (self.firstIteration) {
-        self.firstIteration = false;
-        timeline.add(slide.transition(), 0);
-        timeline.add(slide2.transition(), 0);
-        self.shouldPlayReverseNext = !shouldPlayReverseNext;
+      if (timeline.isActive() || _this.nextImg == null || _this.lastImg == _this.nextImg) {
         return;
       }
 
-      timeline.reversed(shouldPlayReverseNext);
-      self.shouldPlayReverseNext = !shouldPlayReverseNext;
+      var images = _this.slideImages;
+      var shouldPlayReverseAnimation = _this.shouldPlayReverseNext;
+      var nextImg = _this.nextImg;
+      shouldPlayReverseAnimation ? _this.slide.setImage(images[nextImg]) : _this.slide2.setImage(images[nextImg]);
+      _this.lastImg = nextImg;
+      _this.nextImg = null;      
+      timeline.reversed(shouldPlayReverseAnimation);
+      
+      document.querySelector('.active-slide').classList.remove('active-slide');
+      _this.hoveredEl.classList.add('active-slide');
+      _this.shouldPlayReverseNext = !shouldPlayReverseAnimation;
 
     }
-  }.bind(this)
-
-  preloadImages(initThreejs);
+  }
 }
+
 
 ////////////////////
 // CLASSES
@@ -287,7 +328,8 @@ Object.defineProperty(Slide.prototype, 'time', {
   }
 });
 
-Slide.prototype.setImage = function (image) {
+Slide.prototype.setImage = function (image, isTransparent) {
+  this.material.uniforms.opacity.value = isTransparent ? 0 : 1;
   this.material.uniforms.map.value.image = image;
   this.material.uniforms.map.value.needsUpdate = true;
 };

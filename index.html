@@ -24,7 +24,6 @@
         </div>
         <div class="three-container-wrapper">
             <div id="three-container"></div>
-            <img class="fallback" src="https://uploads-ssl.webflow.com/5f10407c905d80e490ed4286/5f1044728c3f509603e9a7f7_image%2045.png" data-slide-fallback=""/>
         </div>
     </div>
 
@@ -32,7 +31,6 @@
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r75/three.min.js"></script>
     <script defer src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/175711/bas.js"></script>
     <script defer src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/175711/OrbitControls-2.js"></script>
-    <script defer src="./hover.js"></script>
     <script defer src="./index.js"></script>
 </body>
 
@@ -73,6 +71,11 @@
         top: 0;
         z-index: 9999;
         max-width: 100%;
+    }
+
+    .active-slide {
+        color: red;
+        transition: all 2s;
     }
 </style>
 
